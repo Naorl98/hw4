@@ -37,12 +37,12 @@ void finish(int);
 void finish(int sig)
 {
 
-    signal(sig, SIG_IGN);
-    float avr = total / (float)timeCount;
-    int pacloss = 100-((pacrec*100)/pacsend);
+    signal(sig, SIG_IGN); 
+    float avr = total / (float)timeCount;//avarage time
+    int pacloss = 100-((pacrec*100)/pacsend); // loos packet
     printf("\n");
     printf("%d packets transmitted, %d received, %d%c packet loss, time %fms\n"
-    , pacrec, pacsend, pacloss, '%', total);
+    , pacsend, pacrec, pacloss, '%', total);
     printf("rtt min / avg / max  = %.3f / %.3f / %.3f ms\n", mintime, avr, maxtime);
     exit(0);
 }
@@ -75,7 +75,7 @@ unsigned short calculate_checksum(unsigned short *paddress, int len)
     return answer;
 }
 
-int header(char packet[IP_MAXPACKET], struct icmp *icmphdr)
+int header(char packet[IP_MAXPACKET], struct icmp *icmphdr) // create header
 {
     // char packetdata[IP_MAXPACKET] = *packet;
     char data[IP_MAXPACKET] = "This is the ping.\n";
@@ -93,18 +93,18 @@ int header(char packet[IP_MAXPACKET], struct icmp *icmphdr)
     return datalen;
 }
 
-void ping(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET], int datalen)
+void ping(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET], int datalen)//ping send
 {
 
     int bytes_sent = sendto(sock, packet, ICMP_HDRLEN + datalen, 0, (struct sockaddr *)dest_in, sizeof((*dest_in)));
-    pacsend++;
+    pacsend++; // inc packet sent count
     if (bytes_sent == -1)
     {
         fprintf(stderr, "Send packet failes, eror: %d", errno);
         exit(0);
     }
 }
-ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET])
+ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET])//recive ping
 {
     bzero(packet, IP_MAXPACKET);
     socklen_t len = sizeof(*dest_in);
@@ -114,7 +114,7 @@ ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET
         if (bytes_received > 0)
         {
 
-            pacrec++;
+            pacrec++; // inc ping recived count
             return bytes_received;
         }
     }
@@ -122,7 +122,7 @@ ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET
 }
 int main(int count, char *argv[])
 {
-    if (count != 2)
+    if (count != 2) // set that command entered well
     {
         printf("usage: sudo ./parta <hostname>\n");
         exit(0);
@@ -135,29 +135,29 @@ int main(int count, char *argv[])
     dest_in.sin_family = AF_INET;
     dest_in.sin_addr.s_addr = inet_addr(argv[1]);
     int sock = -1;
-    if ((sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1)
+    if ((sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1) // create ping socket
     {
         fprintf(stderr, "Failed to creat socket: %d", errno);
         return -1;
     }
-    signal(SIGINT, finish);
+    signal(SIGINT, finish); // catch ctrl + c
     while (1)
     {
-        char packet[IP_MAXPACKET] = {};
+        char packet[IP_MAXPACKET] = {}; // packet buffer
         bzero(packet, IP_MAXPACKET);
-        datalen = header(packet, &icmphdr);
+        datalen = header(packet, &icmphdr); // create header
         struct timeval start, end;
-        gettimeofday(&start, 0);
-        ping(sock, &dest_in, packet, datalen);
-        int bytes_received = listener(sock, &dest_in, packet);
+        gettimeofday(&start, 0); // set start time
+        ping(sock, &dest_in, packet, datalen); // send ping
+        int bytes_received = listener(sock, &dest_in, packet); // recive ping
         struct iphdr *iphdr = (struct iphdr *)packet;
         struct icmp *icmpheader = (struct icmp *)(packet + (iphdr->ihl * 4));
-        gettimeofday(&end, 0);
+        gettimeofday(&end, 0); // set end time
         char reply[IP_MAXPACKET];
         memcpy(reply, packet + ICMP_HDRLEN + IP4_HDRLEN, datalen);
         float milliseconds = (end.tv_sec - start.tv_sec) * 1000.0f + (end.tv_usec - start.tv_usec) / 1000.0f;
         printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", bytes_received, argv[1],
-               (*icmpheader).icmp_seq, iphdr->ttl, milliseconds);
+               (*icmpheader).icmp_seq, iphdr->ttl, milliseconds); // print setting ping packet
         timeCount++;
         total += milliseconds;
         mintime = MIN(mintime, milliseconds);
