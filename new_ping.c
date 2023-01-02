@@ -3,7 +3,7 @@
 //
 // Sending ICMP Echo Requests using Raw-sockets.
 //
-#include <signal.h>
+#include <signal.h> 
 #include <fcntl.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -26,31 +26,24 @@
 #define ICMP_HDRLEN 8
 #define PORT 3000
 int timeCount = 0;
-int pacrec = 0;  // packet recived
-int pacsend = 0; // packet sends
+int pacrec = 0;           // packet recived
+int pacsend = 0;          // packet sends
 float mintime = 99999999; // min time
-float maxtime = 0; // max time
-float total = 0; // total time
-int watch ,sock;
+float maxtime = 0;        // max time
+float total = 0;          // total time
+int watch, sock;
 
 // Checksum algo
 unsigned short calculate_checksum(unsigned short *paddress, int len);
 
-void finish(int);
-
-
-void finish(int sig)
+void finish(int sig)//when finish do this and exit
 {
-
     signal(sig, SIG_IGN);
-    float avr = total / (float)timeCount;
-    int pacloss = 100-((pacrec*100)/pacsend);
-    printf("\n");
-    printf("%d packets transmitted, %d received, %d%c packet loss, time %fms\n"
-    , pacrec, pacsend, pacloss, '%', total);
+    float avr = total / (float)timeCount; // avarage time
+    int pacloss = 100 - ((pacrec * 100) / pacsend); // how much loss
+    printf("%d packets transmitted, %d received, %d%c packet loss, time %fms\n", pacsend, pacrec, pacloss, '%', total);
     printf("rtt min / avg / max  = %.3f / %.3f / %.3f ms\n", mintime, avr, maxtime);
-        // Close the raw socket descriptor.
-    close(watch);
+    // Close the raw socket descriptor.
     close(sock);
     exit(0);
 }
@@ -83,14 +76,14 @@ unsigned short calculate_checksum(unsigned short *paddress, int len)
     return answer;
 }
 
-int header(char packet[IP_MAXPACKET], struct icmp *icmphdr)
+int header(char packet[IP_MAXPACKET], struct icmp *icmphdr)// create the header
 {
     // char packetdata[IP_MAXPACKET] = *packet;
     char data[IP_MAXPACKET] = "This is the ping.\n";
     int datalen = strlen(data) + 1;
     (*icmphdr).icmp_type = ICMP_ECHO;
     (*icmphdr).icmp_code = 0;
-    (*icmphdr).icmp_seq += 1;
+    (*icmphdr).icmp_seq += 1; //inc seq
     (*icmphdr).icmp_id = 18;
     (*icmphdr).icmp_cksum = 0;
     memcpy((packet), icmphdr, ICMP_HDRLEN);
@@ -101,19 +94,21 @@ int header(char packet[IP_MAXPACKET], struct icmp *icmphdr)
     return datalen;
 }
 
-void ping(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET], int datalen)
+void ping(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET], int datalen) // send ping req to server
 {
 
     int bytes_sent = sendto(sock, packet, ICMP_HDRLEN + datalen, 0, (struct sockaddr *)dest_in, sizeof((*dest_in)));
-    pacsend++;
+    pacsend++; // pings sent count
+
     if (bytes_sent == -1)
     {
         fprintf(stderr, "Send packet failes, eror: %d", errno);
         exit(0);
     }
 }
-ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET])
+ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET])//recive ping from server
 {
+
     bzero(packet, IP_MAXPACKET);
     socklen_t len = sizeof(*dest_in);
     ssize_t bytes_received = -1;
@@ -121,121 +116,137 @@ ssize_t listener(int sock, struct sockaddr_in *dest_in, char packet[IP_MAXPACKET
     {
         if (bytes_received > 0)
         {
-
-            pacrec++;
+            pacrec++; // inc packers recived count
             return bytes_received;
         }
     }
     return 0;
 }
-int openTcp(){
+int openTcp()//create tcp connection with watchdog
+{
 
     int my_Socket; // the socket
 
     struct sockaddr_in client_Address;
-    memset(&client_Address,0,sizeof(client_Address));//reset client
-    client_Address.sin_family = AF_INET; // Address family, AF_INET unsigned 
-    client_Address.sin_port = htons(PORT); // Port number 
+    memset(&client_Address, 0, sizeof(client_Address)); // reset client
+    client_Address.sin_family = AF_INET;                // Address family, AF_INET unsigned
+    client_Address.sin_port = htons(PORT);              // Port number
 
-    my_Socket = socket(AF_INET,SOCK_STREAM,0);//create socket
-    if(my_Socket == -1){// check if create succeed
+    my_Socket = socket(AF_INET, SOCK_STREAM, 0); // create socket
+    if (my_Socket == -1)
+    { // check if create succeed
         printf("Socket creation failed\n");
         exit(0);
     }
-    while(1){
-    int con = connect(my_Socket, (struct sockaddr *)&client_Address, sizeof(client_Address));// connect to server
-    if(con != -1){// check if connect succeed
-        break;
-    }
+    while (1)
+    {
+        int con = connect(my_Socket, (struct sockaddr *)&client_Address, sizeof(client_Address)); // connect to server
+        if (con != -1)
+        { // try until scceed
+            break;
+        }
     }
     return my_Socket;
 }
 
 int main(int count, char *argv[])
 {
-    if (count != 2)
+
+    if (count != 2)// check if the command good
     {
         printf("usage: sudo ./parta <hostname>\n");
         exit(0);
     }
-    int datalen = 0;
-    struct icmp icmphdr; // ICMP-header
-    icmphdr.icmp_seq = 0;
-    struct sockaddr_in dest_in;
-    memset(&dest_in, 0, sizeof(struct sockaddr_in));
-    dest_in.sin_family = AF_INET;
-    dest_in.sin_addr.s_addr = inet_addr(argv[1]);
-    sock = -1;
-    if ((sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1)
-    {
-        fprintf(stderr, "Failed to create socket: %d", errno);
-        return -1;
-    }
-    char ok[16]; //  message to watchdog
-    char what[16]; //  message from watchdog
 
-    sprintf(ok,"%s",argv[1]);
-    signal(SIGINT, finish);
-    int pid = fork();
-    if (pid == 0)
+    int pid = fork(); //create child to hundle watchdog
+    if (pid == 0)//child
     {
         char *args[2];
-        // compiled watchdog.c by makefile
         args[0] = "./watchdog";
         args[1] = NULL;
-        execvp(args[0], args);
-        exit(1);
+        execvp(args[0], args); // open watchdog
+        exit(0);
     }
-    else{
-        watch = openTcp();
-        while (1)
+    else // parent
     {
-        char packet[IP_MAXPACKET] = {};
-        bzero(packet, IP_MAXPACKET);
-        datalen = header(packet, &icmphdr);
-        struct timeval start, end;
-        gettimeofday(&start, 0);
-        ping(sock, &dest_in, packet, datalen);
-        if(send(watch,ok,16,0)==-1) break;;
-        if(timeCount == 7) sleep(15);
-        int bytes_received = listener(sock, &dest_in, packet);
-        gettimeofday(&end, 0);
-        if(send(watch,ok,16,0)==-1) break;
-        recv(watch,what,16,0);
-        if(atoi(what)==1)  {
-            printf("server <%s> cannot be reached.\n", argv[1]);
-            pacrec -= 1;
-            sprintf(ok,"%d",1);
-            send(watch,ok,16,0);
-            close(watch);
-            break;
+        watch = openTcp(); // create tcp socket with watchdog
+        int datalen = 0;
+        struct icmp icmphdr; // ICMP-header
+        icmphdr.icmp_seq = 0;
+        struct sockaddr_in dest_in;//ping socket
+        memset(&dest_in, 0, sizeof(struct sockaddr_in));
+        dest_in.sin_family = AF_INET; //ipv4
+        dest_in.sin_addr.s_addr = inet_addr(argv[1]); //ping address
+        sock = -1;
+        if ((sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP)) == -1)//connect to ping socket
+        {
+            fprintf(stderr, "Failed to create socket: %d", errno);
+            return -1;
         }
-        struct iphdr *iphdr = (struct iphdr *)packet;
-        struct icmp *icmpheader = (struct icmp *)(packet + (iphdr->ihl * 4));
-        char reply[IP_MAXPACKET];
-        memcpy(reply, packet + ICMP_HDRLEN + IP4_HDRLEN, datalen);
-        float milliseconds = (end.tv_sec - start.tv_sec) * 1000.0f + (end.tv_usec - start.tv_usec) / 1000.0f;
-        printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", bytes_received, argv[1],
-               (*icmpheader).icmp_seq, iphdr->ttl, milliseconds);
-        timeCount++;
-        total += milliseconds;
-        mintime = MIN(mintime, milliseconds);
-        maxtime = MAX(maxtime, milliseconds);
-        sleep(1);
-       
-    }  
-    wait(0);
-    float avr = total / (float)timeCount;
-    int pacloss = 100-((pacrec*100)/pacsend);
-    printf("\n");
-    printf("%d packets transmitted, %d received, %d%c packet loss, time %fms\n"
-    ,pacsend, pacrec, pacloss, '%', total);
-    printf("rtt min / avg / max  = %.3f / %.3f / %.3f ms\n", mintime, avr, maxtime);
-    // Close the raw socket descriptor.
+        char ok[16];   //  message to watchdog
+        char what[16]; //  message from watchdog
+        sprintf(ok, "%s", argv[1]); // enter ip server 
+        int stop; // to stop program
+        signal(SIGINT, finish); // catch ctrl + c
 
-    close(sock);
-    exit(0); 
-    
+        while (1)
+        {
+            int bytes_received = 0;
+            char packet[IP_MAXPACKET] = {}; // packet
+            bzero(packet, IP_MAXPACKET);
+            datalen = header(packet, &icmphdr);//create header
+            struct timeval start, end; // calculate times
+            gettimeofday(&start, 0); // get start time
+            ping(sock, &dest_in, packet, datalen); // send ping req
+            if (send(watch, ok, 16, 0) == -1) // alret "send ping" to watchdog
+                break;
+            int pid2 = fork(); // child2
+
+            if (pid2 == 0)// start child2
+            {
+                recv(watch, what, 16, 0);//recv ok or break message
+                if (atoi(what) == 1) //if 1 -> exit
+                {
+                    kill(getppid(), SIGSTOP); // stop parent procces
+                }
+                else
+                    exit(0);
+            }
+            else
+            {
+                bytes_received = listener(sock, &dest_in, packet);// recive ping from server
+                gettimeofday(&end, 0); // get end time
+                send(watch, ok, 16, 0); // send "get back" to watchdog
+                stop = 1; // set stop 1 - its ok, keep going
+            }
+            wait(0);//wait to child
+
+            if (stop == 0)// if exit
+            {
+                printf("server <%s> cannot be reached.\n", argv[1]);// print eror
+                sprintf(ok, "%d", 1);
+                send(watch, ok, 16, 0);// send "close socket and break" to watchdog
+                close(watch);// close watchdog socket
+                kill(pid2, SIGINT); // do ctrl + c to kill program
+            }
+            if (stop == 1) // keep going
+            {
+                struct iphdr *iphdr = (struct iphdr *)packet;
+                struct icmp *icmpheader = (struct icmp *)(packet + (iphdr->ihl * 4));
+                char reply[IP_MAXPACKET];
+                memcpy(reply, packet + ICMP_HDRLEN + IP4_HDRLEN, datalen);
+                float milliseconds = (end.tv_sec - start.tv_sec) * 1000.0f + (end.tv_usec - start.tv_usec) / 1000.0f;// calculate msec
+                printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n", bytes_received, argv[1],
+                       (*icmpheader).icmp_seq, iphdr->ttl, milliseconds);//print setting of packet
+                timeCount++; // inc time count
+                total += milliseconds; // add time to total time
+                mintime = MIN(mintime, milliseconds); // check min
+                maxtime = MAX(maxtime, milliseconds);// check max
+                stop = 0;//reset stop
+            }
+            sleep(1); // wait 1 sec
+        }
+
     }
-    return 0;
+    return 0;// exit
 }
